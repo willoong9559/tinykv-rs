@@ -113,8 +113,8 @@ impl KvClient {
     pub fn info(&mut self) -> Result<(usize, Vec<String>), Box<dyn std::error::Error>> {
         let cmd = json!({ "Info": {} });
         self.send_command(&cmd)?;
+        
         let response = self.read_response()?;
-
         if let Some(info) = response.get("Info") {
             let total_keys: usize = serde_json::from_value(info["total_keys"].clone())?;
             let cfs: Vec<String> = serde_json::from_value(info["column_families"].clone())?;
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 1: 基本的 Put/Get 操作 =====
     println!("【示例 1】基本 Put/Get 操作");
-    println!("-".repeat(50));
+    println!("{}", "-".repeat(50));
     
     client.put("default", "name", "Alice")?;
     println!("✓ Put: cf=default, key=name, value=Alice");
@@ -171,8 +171,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 2: Delete 操作 =====
     println!("【示例 2】Delete 操作");
-    println!("-".repeat(50));
-    
+    println!("{}", "-".repeat(50));    
     client.delete("default", "age")?;
     println!("✓ Delete: cf=default, key=age");
     
@@ -181,8 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 3: 列族隔离 =====
     println!("【示例 3】列族隔离");
-    println!("-".repeat(50));
-    
+    println!("{}", "-".repeat(50));    
     client.put("users", "user1", "Bob")?;
     client.put("users", "user2", "Charlie")?;
     println!("✓ Put 到 users 列族: user1=Bob, user2=Charlie");
@@ -198,8 +196,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 4: Scan 操作 =====
     println!("【示例 4】Scan 范围扫描");
-    println!("-".repeat(50));
-    
+    println!("{}", "-".repeat(50));    
     // 添加多个键值对用于扫描
     for i in 1..=5 {
         let key = format!("key{}", i);
@@ -217,22 +214,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 5: Info 操作 =====
     println!("【示例 5】获取服务器统计信息");
-    println!("-".repeat(50));
-    
+    println!("{}", "-".repeat(50));
+
     let (total_keys, cfs) = client.info()?;
     println!("✓ 总键数: {}", total_keys);
     println!("✓ 列族列表: {:?}\n", cfs);
 
     // ===== 示例 6: Flush 持久化 =====
     println!("【示例 6】刷盘持久化");
-    println!("-".repeat(50));
+    println!("{}", "-".repeat(50));
     
     client.flush()?;
     println!("✓ 数据已持久化到磁盘\n");
 
     // ===== 示例 7: 批量操作模式 =====
     println!("【示例 7】批量操作");
-    println!("-".repeat(50));
+    println!("{}", "-".repeat(50));
     
     let data = vec![
         ("email", "alice@example.com"),
@@ -254,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ===== 示例 8: 错误处理 =====
     println!("【示例 8】空值处理");
-    println!("-".repeat(50));
+    println!("{}", "-".repeat(50));
     
     let non_existent = client.get("default", "non_existent_key")?;
     println!("✓ 获取不存在的键: {:?}", non_existent);

@@ -1,6 +1,7 @@
 use crate::storage;
 
 use std::sync::{Arc};
+use std::fmt;
 use serde::{Serialize, Deserialize};
 
 /// 列族分隔符
@@ -67,6 +68,45 @@ pub enum Command {
     Info,
     Flush,
     Compact,
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Command::Get { cf, key } => {
+                write!(f, "Get(cf: {}, key: {})", cf, String::from_utf8_lossy(key))
+            }
+            Command::Put { cf, key, value } => {
+                write!(
+                    f,
+                    "Put(cf: {}, key: {}, value: {})",
+                    cf,
+                    String::from_utf8_lossy(key),
+                    String::from_utf8_lossy(value)
+                )
+            }
+            Command::Delete { cf, key } => {
+                write!(f, "Delete(cf: {}, key: {})", cf, String::from_utf8_lossy(key))
+            }
+            Command::Scan { cf, start_key, end_key, limit } => {
+                let end_key_str = match end_key {
+                    Some(k) => String::from_utf8_lossy(k).into_owned(),
+                    None => "None".to_string(),
+                };
+                write!(
+                    f,
+                    "Scan(cf: {}, start_key: {}, end_key: {}, limit: {})",
+                    cf,
+                    String::from_utf8_lossy(start_key),
+                    end_key_str,
+                    limit
+                )
+            }
+            Command::Info => write!(f, "Info"),
+            Command::Flush => write!(f, "Flush"),
+            Command::Compact => write!(f, "Compact"),
+        }
+    }
 }
 
 // 响应结果

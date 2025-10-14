@@ -54,7 +54,8 @@ impl KvServer {
             }
 
             let cmd: common::Command = serde_json::from_slice(&buffer[..n])?;
-            let response = api.handle_command(cmd);
+            println!("{}", cmd);
+            let response: common::Response = api.handle_command(cmd);
             
             let response_json = serde_json::to_vec(&response)?;
             stream.write_all(&response_json)?;
