@@ -1,11 +1,15 @@
+use tinykv_rs::storage;
+use tinykv_rs::common;
+use std::sync::{Arc};
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_basic_operations() {
-        let storage = Arc::new(StandaloneStorage::new());
-        let api = RawKeyValueApi::new(storage);
+        let storage = Arc::new(storage::StandaloneStorage::new());
+        let api = common::RawKeyValueApi::new(storage);
 
         // 测试 Put
         api.raw_put("default".to_string(), b"key1".to_vec(), b"value1".to_vec()).unwrap();
@@ -22,8 +26,8 @@ mod tests {
 
     #[test]
     fn test_column_families() {
-        let storage = Arc::new(StandaloneStorage::new());
-        let api = RawKeyValueApi::new(storage);
+        let storage = Arc::new(storage::StandaloneStorage::new());
+        let api = common::RawKeyValueApi::new(storage);
 
         // 同一键在不同列族中存储不同值
         api.raw_put("cf1".to_string(), b"key".to_vec(), b"value1".to_vec()).unwrap();
@@ -38,8 +42,8 @@ mod tests {
 
     #[test]
     fn test_scan() {
-        let storage = Arc::new(StandaloneStorage::new());
-        let api = RawKeyValueApi::new(storage);
+        let storage = Arc::new(storage::StandaloneStorage::new());
+        let api = common::RawKeyValueApi::new(storage);
 
         for i in 0..5 {
             let key = format!("key{}", i);
