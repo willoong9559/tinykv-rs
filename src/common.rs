@@ -19,7 +19,9 @@ pub enum ModifyOp {
 pub struct Modify {
     pub op: ModifyOp,
     pub cf: String,
+    #[serde(with = "serde_bytes")]
     pub key: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
 }
 
@@ -49,20 +51,26 @@ impl Modify {
 pub enum Command {
     Get {
         cf: String,
+        #[serde(with = "serde_bytes")]
         key: Vec<u8>,
     },
     Put {
         cf: String,
+        #[serde(with = "serde_bytes")]
         key: Vec<u8>,
+        #[serde(with = "serde_bytes")]
         value: Vec<u8>,
     },
     Delete {
         cf: String,
+        #[serde(with = "serde_bytes")]
         key: Vec<u8>,
     },
     Scan {
         cf: String,
+        #[serde(with = "serde_bytes")]
         start_key: Vec<u8>,
+        #[serde(with = "serde_bytes")]
         end_key: Option<Vec<u8>>,
         limit: usize,
     },
@@ -110,18 +118,31 @@ impl fmt::Display for Command {
     }
 }
 
+// #[serde(transparent)] 表示序列化时和内部 Vec<u8> 一样
+// Base64 编码会自动应用
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(transparent)]
+pub struct Bytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
+
 // 响应结果
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Response {
     Ok,
-    Value(Option<Vec<u8>>),
-    Values(Vec<(Vec<u8>, Vec<u8>)>),
+
+    // 用 Bytes 包装 Option<Vec<u8>>
+    Value(Option<Bytes>),
+
+    // 用 Bytes 包装 tuple 内的 Vec<u8>
+    Values(Vec<(Bytes, Bytes)>),
+
     Error(String),
+
     Info {
         total_keys: usize,
         column_families: Vec<String>,
     },
 }
+
 
 // 为键添加列族前缀
 pub fn key_with_cf(cf: &str, key: &[u8]) -> Vec<u8> {
@@ -189,7 +210,7 @@ impl RawKeyValueApi {
         match cmd {
             Command::Get { cf, key } => {
                 match self.raw_get(&cf, &key) {
-                    Ok(value) => Response::Value(value),
+                    Ok(value) => Response::Value(value.map(Bytes)),
                     Err(e) => Response::Error(e),
                 }
             }
@@ -207,7 +228,11 @@ impl RawKeyValueApi {
             }
             Command::Scan { cf, start_key, end_key, limit } => {
                 match self.raw_scan(&cf, &start_key, end_key.as_deref(), limit) {
-                    Ok(values) => Response::Values(values),
+                    Ok(values) => Response::Values(values
+                                                                            .into_iter()
+                                                                            .map(|(k, v)| (Bytes(k), (Bytes(v))))
+                                                                            .collect()
+                                                                        ),
                     Err(e) => Response::Error(e),
                 }
             }
