@@ -45,6 +45,7 @@ impl Modify {
 
 // 请求命令
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")] 
 pub enum Command {
     Get {
         cf: String,
