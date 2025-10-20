@@ -126,6 +126,7 @@ pub struct Bytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
 // 响应结果
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
 pub enum Response {
     Ok,
 

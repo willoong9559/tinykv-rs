@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,13 +15,13 @@ type Client struct {
 
 // Command 命令结构
 type Command struct {
-	Type     string `json:"type"`
-	CF       string `json:"cf,omitempty"`
-	Key      []byte `json:"key,omitempty"`
-	Value    []byte `json:"value,omitempty"`
-	StartKey []byte `json:"start_key,omitempty"`
-	EndKey   []byte `json:"end_key,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	Type     string  `json:"type"`
+	CF       string  `json:"cf,omitempty"`
+	Key      []byte  `json:"key,omitempty"`
+	Value    []byte  `json:"value,omitempty"`
+	StartKey []byte  `json:"start_key,omitempty"`
+	EndKey   *[]byte `json:"end_key,omitempty"` // 使用指针表示 Option
+	Limit    int     `json:"limit,omitempty"`
 }
 
 // Response 响应结构
@@ -30,7 +29,7 @@ type Response struct {
 	Value  interface{}            `json:"Value,omitempty"`
 	Values interface{}            `json:"Values,omitempty"`
 	Info   map[string]interface{} `json:"Info,omitempty"`
-	Error  string                 `json:"error,omitempty"`
+	Error  string                 `json:"Error,omitempty"`
 }
 
 // NewClient 创建新客户端
@@ -50,45 +49,6 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// encodeBase64 将字符串编码为 Base64
-func encodeBase64(s string) string {
-	return base64.StdEncoding.EncodeToString([]byte(s))
-}
-
-// decodeBase64 将 Base64 解码为字符串
-func decodeBase64(s string) (string, error) {
-	data, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-func stringToBytes(s string) []byte {
-	return []byte(s)
-}
-
-// decodeBytes 解码字节数组 (JSON 中的 [98, 111, 98] 格式)
-func decodeBytes(data interface{}) (string, error) {
-	switch v := data.(type) {
-	case []interface{}:
-		bytes := make([]byte, len(v))
-		for i, b := range v {
-			if num, ok := b.(float64); ok {
-				bytes[i] = byte(num)
-			} else {
-				return "", fmt.Errorf("invalid byte value")
-			}
-		}
-		return string(bytes), nil
-	case string:
-		// 如果是 Base64 字符串
-		return decodeBase64(v)
-	default:
-		return "", fmt.Errorf("unsupported data type: %T", data)
-	}
-}
-
 // sendCommand 发送命令
 func (c *Client) sendCommand(cmd Command) error {
 	data, err := json.Marshal(cmd)
@@ -96,7 +56,9 @@ func (c *Client) sendCommand(cmd Command) error {
 		return fmt.Errorf("序列化命令失败: %w", err)
 	}
 
-	// 不添加换行符,直接发送 JSON
+	// 调试输出
+	fmt.Printf("[DEBUG] 发送 JSON: %s\n", string(data))
+
 	_, err = c.conn.Write(data)
 	if err != nil {
 		return fmt.Errorf("发送命令失败: %w", err)
@@ -116,6 +78,8 @@ func (c *Client) readResponse() (*Response, error) {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
+	fmt.Printf("[DEBUG] 收到响应: %s\n", string(buffer[:n]))
+
 	var resp Response
 	if err := json.Unmarshal(buffer[:n], &resp); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
@@ -124,13 +88,27 @@ func (c *Client) readResponse() (*Response, error) {
 	return &resp, nil
 }
 
-// Put 存储键值对 (Base64 编码)
+// decodeValue 解码响应中的值
+func decodeValue(data interface{}) (string, error) {
+	if data == nil {
+		return "", fmt.Errorf("值为 nil")
+	}
+
+	// 处理 Base64 字符串 (Rust serde_bytes 序列化后的格式)
+	if str, ok := data.(string); ok {
+		return str, nil
+	}
+
+	return "", fmt.Errorf("不支持的值类型: %T", data)
+}
+
+// Put 存储键值对
 func (c *Client) Put(cf, key, value string) error {
 	cmd := Command{
 		Type:  "Put",
 		CF:    cf,
-		Key:   stringToBytes(key),
-		Value: stringToBytes(value),
+		Key:   []byte(key),   // 直接转字节,json.Marshal 会自动 Base64 编码
+		Value: []byte(value), // 直接转字节
 	}
 
 	if err := c.sendCommand(cmd); err != nil {
@@ -149,7 +127,7 @@ func (c *Client) Put(cf, key, value string) error {
 	return nil
 }
 
-// Get 获取值 (Base64 解码)
+// Get 获取值
 func (c *Client) Get(cf, key string) (string, bool, error) {
 	cmd := Command{
 		Type: "Get",
@@ -175,13 +153,8 @@ func (c *Client) Get(cf, key string) (string, bool, error) {
 		return "", false, nil
 	}
 
-	// 检查是否是空数组
-	if arr, ok := resp.Value.([]interface{}); ok && len(arr) == 0 {
-		return "", false, nil
-	}
-
 	// 解码值
-	value, err := decodeBytes(resp.Value)
+	value, err := decodeValue(resp.Value)
 	if err != nil {
 		return "", false, fmt.Errorf("解码值失败: %w", err)
 	}
@@ -189,12 +162,12 @@ func (c *Client) Get(cf, key string) (string, bool, error) {
 	return value, true, nil
 }
 
-// Delete 删除键 (Base64 编码)
+// Delete 删除键
 func (c *Client) Delete(cf, key string) error {
 	cmd := Command{
 		Type: "Delete",
 		CF:   cf,
-		Key:  stringToBytes(key),
+		Key:  []byte(key),
 	}
 
 	if err := c.sendCommand(cmd); err != nil {
@@ -213,20 +186,18 @@ func (c *Client) Delete(cf, key string) error {
 	return nil
 }
 
-// Scan 扫描范围 (Base64 编码)
+// Scan 扫描范围
 func (c *Client) Scan(cf, startKey string, endKey *string, limit int) ([]map[string]string, error) {
-	var encodedEndKey string
-	if endKey != nil {
-		encoded := encodeBase64(*endKey)
-		encodedEndKey = encoded
-	}
-
 	cmd := Command{
 		Type:     "Scan",
 		CF:       cf,
-		StartKey: stringToBytes(startKey),
-		EndKey:   stringToBytes(encodedEndKey),
+		StartKey: []byte(startKey),
 		Limit:    limit,
+	}
+
+	if endKey != nil {
+		endKeyBytes := []byte(*endKey)
+		cmd.EndKey = &endKeyBytes
 	}
 
 	if err := c.sendCommand(cmd); err != nil {
@@ -242,7 +213,7 @@ func (c *Client) Scan(cf, startKey string, endKey *string, limit int) ([]map[str
 		return nil, fmt.Errorf("Scan 失败: %s", resp.Error)
 	}
 
-	// 解析结果 [[key_bytes, value_bytes], ...]
+	// 解析结果 [[key_base64, value_base64], ...]
 	var result []map[string]string
 	if resp.Values != nil {
 		valuesArr, ok := resp.Values.([]interface{})
@@ -256,12 +227,13 @@ func (c *Client) Scan(cf, startKey string, endKey *string, limit int) ([]map[str
 				continue
 			}
 
-			key, err := decodeBytes(itemArr[0])
+			// 解码 key 和 value (都是 Base64 字符串)
+			key, err := decodeValue(itemArr[0])
 			if err != nil {
 				continue
 			}
 
-			value, err := decodeBytes(itemArr[1])
+			value, err := decodeValue(itemArr[1])
 			if err != nil {
 				continue
 			}
@@ -341,7 +313,7 @@ func (c *Client) Flush() error {
 // ===================== 示例代码 =====================
 
 func main() {
-	fmt.Println("=== TinyKV Go 客户端示例 (匹配 Rust 客户端) ===")
+	fmt.Println("=== TinyKV Go 客户端示例 ===")
 
 	// 连接服务器
 	client, err := NewClient("127.0.0.1:8080")
